@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Preventivi e Consuntivi - Rekeep/RAI</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%230ea5e9;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%2314b8a6;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23grad)' /%3E%3Ctext x='50%25' y='66%25' font-family='sans-serif' font-weight='bold' font-size='48' fill='%23ffffff' text-anchor='middle'%3EGP%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%230ea5e9;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%2314b8a6;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23grad)' /%3E%3Ctext x='50%25' y='66%25' font-family='sans-serif' font-weight='bold' font-size='48' fill='%23ffffff' text-anchor='middle'%3EGP%3C/text%3E%3C/svg%3E">
+
+    <!-- Diagnostica Errori JavaScript -->
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            const banner = document.getElementById('debug-banner');
+            const msgSpan = document.getElementById('debug-banner-msg');
+            if (banner && msgSpan) {
+                banner.style.display = 'block';
+                msgSpan.innerHTML = message + "<br>File: " + source + " (riga " + lineno + ", colonna " + colno + ")" + (error ? "<br>Stack: " + error.stack : "");
+            }
+            return false;
+        };
+    </script>
+
+    <!-- Librerie CSS/Font -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+
+    <!-- Librerie CDN Esterne -->
+    <!-- Grafici: Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Icone: Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Generazione Excel: ExcelJS & FileSaver -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Esportazione PDF: html2pdf.js (basato su jsPDF e html2canvas) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+
+<body>
+
+    <!-- Banner diagnostico in cima allo schermo in caso di errori JS -->
+    <div id="debug-banner" style="display: none; background: #ef4444; color: white; padding: 12px; font-family: monospace; font-size: 0.85rem; position: fixed; top: 0; left: 0; right: 0; z-index: 99999; border-bottom: 2px solid #b91c1c; max-height: 200px; overflow-y: auto;">
+        <strong>ERRORE JS RILEVATO:</strong> <span id="debug-banner-msg"></span>
+    </div>
+
+    <!-- BARRA LATERALE DI NAVIGAZIONE -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-icon">GP</div>
+            <div class="logo-text">
+                <h1>REKEEP-CMF</h1>
+                <span>Gestione Lavori</span>
+            </div>
+        </div>
+
+        <!-- SELETTORE COMMESSA -->
+        <div class="commessa-selector-container">
+            <label for="active-commessa-select">Commessa Attiva</label>
+            <div class="commessa-selector-flex">
+                <select id="active-commessa-select" class="form-control-cell">
+                    <!-- Popolato dinamicamente da JS -->
+                </select>
+                <button class="btn btn-outline btn-icon-only" id="btn-manage-commesse" title="Gestisci Commesse">
+                    <i data-lucide="folder-cog"></i>
+                </button>
+            </div>
+        </div>
+
+        <ul class="sidebar-menu">
+            <li>
+                <a class="menu-item active" data-view="dashboard">
+                    <i data-lucide="layout-dashboard"></i> Home
+                </a>
+            </li>
+            <li>
+                <a class="menu-item" data-view="preventivi-list">
+                    <i data-lucide="file-text"></i> Preventivi
+                </a>
+            </li>
+            <li>
+                <a class="menu-item" data-view="consuntivi-list">
+                    <i data-lucide="file-spreadsheet"></i> Consuntivi
+                </a>
+            </li>
+            <li>
+                <a class="menu-item" data-view="oreExtra-list">
+                    <i data-lucide="clock"></i> Ore Extra
+                </a>
+            </li>
+            <li>
+                <a class="menu-item" data-view="rapporti-list">
+                    <i data-lucide="clipboard-list"></i> Rapporti Lavoro
+                </a>
+            </li>
+            <li>
+                <a class="menu-item" data-view="settings">
+                    <i data-lucide="settings"></i> Impostazioni
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <button class="theme-toggle-btn" id="theme-toggle">
+                <i data-lucide="sun"></i> Cambia Tema
+            </button>
+            <div class="user-profile">
+                <div class="avatar">IC</div>
+                <div class="user-info">
+                    <div class="user-name">Ivan Campagnoli</div>
+                    <div class="user-role">BM Operation</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- AREA DI CONTENUTO PRINCIPALE -->
+    <main class="main-content">
+        <!-- HEADER DELLA PAGINA -->
+        <header class="content-header">
+            <div class="header-title">
+                <h2>Gestione Preventivi e Consuntivi</h2>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="btn-new-preventivo">
+                    <i data-lucide="plus"></i> Nuovo Preventivo
+                </button>
+                <button class="btn btn-secondary" id="btn-new-consuntivo">
+                    <i data-lucide="plus-circle"></i> Nuovo Consuntivo
+                </button>
+                <button class="btn btn-outline" id="btn-new-oreExtra"
+                    style="background-color: #f59e0b; color: white; border-color: #f59e0b;">
+                    <i data-lucide="clock"></i> Nuove Ore Extra
+                </button>
+                <button class="btn btn-outline" id="btn-new-rapporto"
+                    style="background-color: #10b981; color: white; border-color: #10b981;">
+                    <i data-lucide="clipboard-list"></i> Nuovo Rapporto
+                </button>
+            </div>
+        </header>
+
+        <!-- CONTAINER DELLE VISTE (SPA) -->
+        <div class="view-container">
+
+            <!-- VISTA 1: DASHBOARD -->
+            <section id="view-dashboard" class="view-section active">
+                <!-- SEZIONE BACKUP E RIPRISTINO RAPIDO -->
+                <div class="dashboard-backup-banner" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; gap: 20px; box-shadow: var(--shadow-sm); backdrop-filter: var(--glass-blur); flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #6366f1; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i data-lucide="hard-drive" style="width: 20px; height: 20px;"></i>
+                        </div>
+                        <div>
+                            <h4 style="font-family: var(--font-heading); font-size: 1rem; font-weight: 600; margin: 0;">Backup e Sicurezza Dati</h4>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 2px 0 0 0;">Esporta o ripristina lo stato corrente di preventivi, consuntivi e ore extra.</p>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin: 4px 0 0 0; display: flex; align-items: center; gap: 4px;" id="backup-last-updated-container">
+                                <i data-lucide="calendar" style="width: 12px; height: 12px;"></i>
+                                Ultimo aggiornamento dati: <span id="backup-last-updated-val" style="font-weight: 600;">Caricamento...</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" id="btn-backup-export-home" style="background: linear-gradient(135deg, #0ea5e9, #6366f1); padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; border: none;">
+                            <i data-lucide="download" style="width: 16px; height: 16px;"></i> Esporta Backup (.json)
+                        </button>
+                        <button class="btn btn-outline" id="btn-backup-import-home" style="color: #f59e0b; border-color: #f59e0b; padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; background: transparent;">
+                            <i data-lucide="upload" style="width: 16px; height: 16px;"></i> Importa Backup
+                        </button>
+                        <span id="backup-status-msg-home" style="font-size: 0.85rem; font-weight: 500; display: none;"></span>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i data-lucide="file-text"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Preventivi Creati</span>
+                            <span class="stat-value" id="stat-count-preventivi">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i data-lucide="wallet"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Totale Preventivato</span>
+                            <span class="stat-value" id="stat-value-preventivi">0,00 €</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <i data-lucide="check-square"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Consuntivi Gestiti</span>
+                            <span class="stat-value" id="stat-count-consuntivi">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon teal">
+                            <i data-lucide="trending-up"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Importo Consuntivato</span>
+                            <span class="stat-value" id="stat-value-consuntivi">0,00 €</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-charts">
+                    <div class="chart-card">
+                        <div class="card-header-flex">
+                            <div class="card-title">
+                                <h3>Andamento Lavorazioni Extra Canone 2026</h3>
+                            </div>
+                        </div>
+                        <div class="chart-container-scroll"
+                            style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                            <div style="height: 300px; min-width: 1000px; position: relative;">
+                                <canvas id="dashboardChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="activity-card">
+                        <div class="card-header-flex">
+                            <div class="card-title">
+                                <h3>Attività Recenti</h3>
+                            </div>
+                        </div>
+                        <div class="activity-list" id="recent-activities">
+                            <!-- Popolato dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA 2: LISTA PREVENTIVI -->
+            <section id="view-preventivi-list" class="view-section">
+                <div class="list-card">
+                    <div class="table-filters">
+                        <input type="text" class="filter-input" id="search-preventivi"
+                            placeholder="Cerca per numero, committente o oggetto...">
+                        <select class="filter-select" id="filter-preventivi-status">
+                            <option value="all">Tutti gli stati</option>
+                            <option value="draft">Bozza</option>
+                            <option value="sent">Inviato</option>
+                            <option value="approved">Approvato</option>
+                            <option value="rejected">Respinto</option>
+                        </select>
+                    </div>
+                    <table class="responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Num. Offerta</th>
+                                <th>Data</th>
+                                <th>Committente</th>
+                                <th>Oggetto</th>
+                                <th>Totale (IVA escl.)</th>
+                                <th>Bilancino</th>
+                                <th>RDS/RDF</th>
+                                <th>Stato</th>
+                                <th style="width: 200px;">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preventivi-table-body">
+                            <!-- Popolato da JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VISTA 3: MODIFICA / CREAZIONE PREVENTIVO (EDITOR SCHEDA) -->
+            <section id="view-preventivi-edit" class="view-section">
+                <div class="document-editor-container">
+                    <div class="editor-toolbar">
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn btn-outline" onclick="switchView('preventivi-list')">
+                                <i data-lucide="arrow-left"></i> Indietro
+                            </button>
+                            <span style="font-size: 0.95rem; color: var(--text-secondary);">
+                                Stai modificando il Preventivo dell'offerta
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <select id="prev-edit-bilancino" class="filter-select" style="padding: 6px 12px;">
+                                <option value="">Bilancino: ---</option>
+                                <option value="OK">Bilancino: OK</option>
+                                <option value="NO">Bilancino: da inserire</option>
+                            </select>
+                            <select id="prev-edit-status" class="filter-select" style="padding: 6px 12px;">
+                                <option value="draft">Bozza</option>
+                                <option value="sent">Inviato</option>
+                                <option value="approved">Approvato</option>
+                                <option value="rejected">Respinto</option>
+                            </select>
+                            <button class="btn btn-secondary" id="prev-btn-save">
+                                <i data-lucide="save"></i> Salva
+                            </button>
+                            <button class="btn btn-outline" id="prev-btn-excel"
+                                style="color: #22c55e; border-color: #22c55e;">
+                                <i data-lucide="file-spreadsheet"></i> Esporta Excel
+                            </button>
+                            <button class="btn btn-outline" id="prev-btn-pdf"
+                                style="color: #ef4444; border-color: #ef4444;">
+                                <i data-lucide="file-text"></i> Esporta PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- FOGLIO SIMULATO SULLO SCHERMO -->
+                    <div class="sheet-container" id="preventivo-sheet-container">
+                        <!-- Intestazione del Foglio -->
+                        <div class="sheet-meta-grid">
+                            <div class="meta-group-left">
+                                <div class="meta-company-name">REKEEP S.p.A.</div>
+                                <div>Sede Legale: Via Poli 4 - Zola Predosa (BO)</div>
+                                <div>Filiale Lombardia - Sede di Milano</div>
+                                <div><input type="text" id="prev-meta-company" class="meta-val-input"
+                                        style="font-weight: bold; width: 100%;"></div>
+                            </div>
+                            <div class="meta-group-center">
+                                <div>Spett.le</div>
+                            </div>
+                            <div class="meta-group-right">
+                                <div class="meta-row">
+                                    <span class="meta-label">c.a:</span>
+                                    <input type="text" id="prev-meta-ca" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label"></span>
+                                    <input type="text" id="prev-meta-ca2" class="meta-val-input">
+                                </div>
+                                <div class="meta-row" style="margin-top: 10px;">
+                                    <span class="meta-label">DATA:</span>
+                                    <input type="date" id="prev-meta-date" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Committente:</span>
+                                    <input type="text" id="prev-meta-committente" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">NUM. Offerta:</span>
+                                    <input type="text" id="prev-meta-num" class="meta-val-input"
+                                        style="font-weight: 700;">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Presidio:</span>
+                                    <input type="text" id="prev-meta-presidio" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">PREV. N°:</span>
+                                    <input type="text" id="prev-meta-code" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Area Lavoro:</span>
+                                    <input type="text" id="prev-meta-lavoro" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">ODL:</span>
+                                    <input type="text" id="prev-meta-odl" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Intervento:</span>
+                                    <input type="text" id="prev-meta-intervento" class="meta-val-input"
+                                        style="font-weight: bold;">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Firma REKEEP:</span>
+                                    <input type="text" id="prev-meta-author" class="meta-val-input">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Oggetto e Calcoli Parametri -->
+                        <div style="margin-bottom: 20px;">
+                            <label class="meta-label" style="display: block; margin-bottom: 4px;">OGGETTO
+                                PREVENTIVO:</label>
+                            <textarea id="prev-meta-oggetto" class="form-control" rows="2"
+                                style="background: rgba(0,0,0,0.1); border: 1px solid var(--border-color); color: var(--text-primary); resize: vertical; width: 100%; font-weight: bold; font-size: 0.9rem;"></textarea>
+                        </div>
+
+                        <div
+                            style="display: flex; gap: 24px; margin-bottom: 20px; background: rgba(14, 165, 233, 0.05); padding: 12px; border-radius: 8px; border: 1px solid rgba(14, 165, 233, 0.15); align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Incremento Contrattuale:</span>
+                                <input type="number" id="prev-edit-markup" class="meta-val-input"
+                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Sconto Gara:</span>
+                                <input type="number" id="prev-edit-discount" class="meta-val-input"
+                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Formula:</span>
+                                <select id="prev-edit-formula" class="meta-val-input"
+                                    style="font-weight: bold; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 4px;">
+                                    <option value="corretta">Corretta (Moderna)</option>
+                                    <option value="originale">Originale (Excel)</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Margine Reale:</span>
+                                <span id="prev-margin-percentage" style="font-weight: bold;">0,00%</span>
+                            </div>
+                        </div>
+
+                        <!-- TITOLO DELLA GRIGLIA -->
+                        <div class="sheet-title-section" style="margin-bottom: 12px; margin-top: 24px;">
+                            <h3>COMPUTO METRICO ESTIMATIVO</h3>
+                        </div>
+
+                        <!-- 1. TABELLA MATERIALI -->
+                        <h4
+                            style="margin-bottom: 10px; color: var(--primary); font-family: var(--font-heading); display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="box"></i> 1. Fornitura Materiali
+                        </h4>
+                        <div style="overflow-x: auto; width: 100%; margin-bottom: 12px; border-radius: 4px;">
+                            <table class="excel-table" id="table-materiali"
+                                style="min-width: 1200px; margin-bottom: 0;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px; min-width: 50px;" class="cell-center">Magg.</th>
+                                        <th style="width: 100px; min-width: 100px;">Listino</th>
+                                        <th style="width: 180px; min-width: 150px;">Voci</th>
+                                        <th style="min-width: 350px;">Descrizione sintetica delle lavorazioni</th>
+                                        <th style="width: 60px; min-width: 60px;">U.M.</th>
+                                        <th style="width: 80px; min-width: 80px;">Q.tà</th>
+                                        <th style="width: 110px; min-width: 110px;">Prezzo unitario</th>
+                                        <th style="width: 110px; min-width: 110px;">Incr. % contr.</th>
+                                        <th style="width: 110px; min-width: 110px;">Sconto Gara %</th>
+                                        <th style="width: 110px; min-width: 110px;">PU Scontato</th>
+                                        <th style="width: 120px; min-width: 120px;">Totale</th>
+                                        <th style="width: 50px; min-width: 50px;" class="row-actions-td"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="prev-materiali-tbody">
+                                    <!-- Righe materiali generate dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="add-row-btn-container">
+                            <button class="btn btn-outline" id="prev-add-materiale-btn">
+                                <i data-lucide="plus"></i> Aggiungi Materiale
+                            </button>
+                        </div>
+
+                        <!-- 2. TABELLA MANODOPERA -->
+                        <h4
+                            style="margin-bottom: 10px; color: var(--secondary); font-family: var(--font-heading); margin-top: 32px; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="users"></i> 2. Prestazioni Manodopera
+                        </h4>
+                        <div style="overflow-x: auto; width: 100%; margin-bottom: 12px; border-radius: 4px;">
+                            <table class="excel-table" id="table-manodopera"
+                                style="min-width: 1200px; margin-bottom: 0;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px; min-width: 50px;" class="cell-center">Magg.</th>
+                                        <th style="width: 100px; min-width: 100px;">Listino</th>
+                                        <th style="width: 180px; min-width: 150px;">Voci</th>
+                                        <th style="min-width: 350px;">Descrizione sintetica delle lavorazioni</th>
+                                        <th style="width: 60px; min-width: 60px;">U.M.</th>
+                                        <th style="width: 80px; min-width: 80px;">Q.tà</th>
+                                        <th style="width: 110px; min-width: 110px;">Prezzo unitario</th>
+                                        <th style="width: 110px; min-width: 110px;">Incr. % contr.</th>
+                                        <th style="width: 110px; min-width: 110px;">Sconto Gara %</th>
+                                        <th style="width: 110px; min-width: 110px;">PU Scontato</th>
+                                        <th style="width: 120px; min-width: 120px;">Totale</th>
+                                        <th style="width: 50px; min-width: 50px;" class="row-actions-td"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="prev-manodopera-tbody">
+                                    <!-- Righe manodopera generate dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="add-row-btn-container">
+                            <button class="btn btn-outline" id="prev-add-manodopera-btn">
+                                <i data-lucide="plus"></i> Aggiungi Manodopera
+                            </button>
+                        </div>
+
+                        <!-- TOTALE GENERALE PREVENTIVO -->
+                        <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                            <table class="excel-table" style="width: 40%; margin-bottom: 0;">
+                                <tbody>
+                                    <tr class="excel-total-row">
+                                        <td class="cell-bold">TOTALE OFFERTA (IVA escl.)</td>
+                                        <td class="cell-right cell-bold" id="prev-total-general"
+                                            style="width: 45%; font-size: 1.1rem; color: var(--primary);">0,00 €</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- FIRME E CONDIZIONI -->
+                        <div
+                            style="display: flex; justify-content: space-between; margin-top: 36px; border-top: 1px solid var(--border-color); padding-top: 20px; font-size: 0.85rem;">
+                            <div>
+                                <p style="font-weight: bold; margin-bottom: 30px;">Per REKEEP S.p.A.</p>
+                                <p style="font-style: italic; color: var(--text-secondary);" id="prev-sheet-author">Ivan
+                                    Luca Campagnoli</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="font-weight: bold; margin-bottom: 30px;">Firma per accettazione Committente
+                                </p>
+                                <p style="color: var(--text-muted);">___________________________</p>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 28px;">
+                            <h5 class="meta-label">Note Aggiuntive:</h5>
+                            <textarea id="prev-notes-input" class="form-control" rows="2"
+                                style="background: rgba(0,0,0,0.1); color: var(--text-primary); border: 1px solid var(--border-color); resize: vertical; margin-top: 6px;"></textarea>
+                        </div>
+
+                        <div class="conditions-grid">
+                            <div class="condition-card">
+                                <h5>Pagamenti</h5>
+                                <textarea id="prev-cond-pagamenti"
+                                    placeholder="Inserisci termini di pagamento..."></textarea>
+                            </div>
+                            <div class="condition-card">
+                                <h5>Esclusioni</h5>
+                                <textarea id="prev-cond-esclusione"
+                                    placeholder="Specifica esclusioni della fornitura..."></textarea>
+                            </div>
+                            <div class="condition-card">
+                                <h5>Validità dell'offerta</h5>
+                                <textarea id="prev-cond-validita"
+                                    placeholder="Specifica giorni di validità..."></textarea>
+                            </div>
+                            <div class="condition-card">
+                                <h5>Consegna Lavori</h5>
+                                <textarea id="prev-cond-consegna"
+                                    placeholder="Specifica tempi di consegna..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA 4: LISTA CONSUNTIVI -->
+            <section id="view-consuntivi-list" class="view-section">
+                <div class="list-card">
+                    <div class="table-filters">
+                        <input type="text" class="filter-input" id="search-consuntivi"
+                            placeholder="Cerca per nome, committente o oggetto...">
+                        <select class="filter-select" id="filter-consuntivi-status">
+                            <option value="all">Tutti gli stati</option>
+                            <option value="draft">Bozza</option>
+                            <option value="sent">Inviato</option>
+                            <option value="approved">Approvato</option>
+                            <option value="rejected">Respinto</option>
+                        </select>
+                    </div>
+                    <table class="responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Nome Consuntivo</th>
+                                <th>Data Creazione</th>
+                                <th>Committente</th>
+                                <th>Presidio</th>
+                                <th>Importo Totale (Consuntivato)</th>
+                                <th>Bilancino</th>
+                                <th>RDS/RDF</th>
+                                <th>Stato</th>
+                                <th style="width: 200px;">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consuntivi-table-body">
+                            <!-- Popolato da JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VISTA 5: EDITOR CONSUNTIVO (A SCHEDE) -->
+            <section id="view-consuntivi-edit" class="view-section">
+                <div class="document-editor-container">
+                    <div class="editor-toolbar">
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn btn-outline" onclick="switchView('consuntivi-list')">
+                                <i data-lucide="arrow-left"></i> Indietro
+                            </button>
+                            <input type="text" id="cons-meta-name" class="meta-val-input"
+                                style="font-weight: bold; font-size: 1rem; width: 450px;">
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <select id="cons-edit-bilancino" class="filter-select" style="padding: 6px 12px;">
+                                <option value="">Bilancino: ---</option>
+                                <option value="OK">Bilancino: OK</option>
+                                <option value="NO">Bilancino: da inserire</option>
+                            </select>
+                            <select id="cons-edit-status" class="filter-select" style="padding: 6px 12px;">
+                                <option value="draft">Bozza</option>
+                                <option value="sent">Inviato</option>
+                                <option value="approved">Approvato</option>
+                                <option value="rejected">Respinto</option>
+                            </select>
+                            <button class="btn btn-secondary" id="cons-btn-save">
+                                <i data-lucide="save"></i> Salva Consuntivo
+                            </button>
+                            <button class="btn btn-outline" id="cons-btn-excel"
+                                style="color: #22c55e; border-color: #22c55e;">
+                                <i data-lucide="file-spreadsheet"></i> Esporta Excel
+                            </button>
+                            <button class="btn btn-outline" id="cons-btn-pdf"
+                                style="color: #ef4444; border-color: #ef4444;">
+                                <i data-lucide="file-text"></i> Esporta PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STRUTTURA A TAB PER SCHEDE CONSUNTIVO (Riepilogo, Mese 1, Mese 2...) -->
+                    <div class="sheet-tabs-container" id="consuntivo-tabs-container">
+                        <!-- Generato dinamicamente da app.js -->
+                    </div>
+
+                    <!-- FOGLIO SIMULATO ATTIVO -->
+                    <div class="sheet-container" id="consuntivo-sheet-container">
+                        <!-- Intestazione del Foglio Consuntivi -->
+                        <div class="sheet-meta-grid" style="margin-bottom: 24px;">
+                            <div class="meta-group-left">
+                                <div class="meta-company-name">REKEEP S.p.A.</div>
+                                <div>Sede Legale: Via Poli 4 - Zola Predosa (BO)</div>
+                                <div><input type="text" id="cons-meta-company" class="meta-val-input"
+                                        style="font-weight: bold; width: 100%;"></div>
+                            </div>
+                            <div class="meta-group-center">
+                                <div>Spett.le</div>
+                            </div>
+                            <div class="meta-group-right">
+                                <div class="meta-row">
+                                    <span class="meta-label">c.a:</span>
+                                    <input type="text" id="cons-meta-ca" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label"></span>
+                                    <input type="text" id="cons-meta-ca2" class="meta-val-input">
+                                </div>
+                                <div class="meta-row" style="margin-top: 10px;">
+                                    <span class="meta-label">DATA:</span>
+                                    <input type="date" id="cons-meta-date" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Committente:</span>
+                                    <input type="text" id="cons-meta-committente" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Presidio:</span>
+                                    <input type="text" id="cons-meta-presidio" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">ODL:</span>
+                                    <input type="text" id="cons-meta-odl" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">PREV:</span>
+                                    <input type="text" id="cons-meta-prevcode" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Intervento:</span>
+                                    <input type="text" id="cons-meta-intervento" class="meta-val-input"
+                                        style="font-weight: bold;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Oggetto e Parametri Contrattuali Consuntivo -->
+                        <div style="margin-bottom: 24px;">
+                            <label class="meta-label" style="display: block; margin-bottom: 4px;">OGGETTO
+                                CONSUNTIVO:</label>
+                            <textarea id="cons-meta-oggetto" class="form-control" rows="2"
+                                style="background: rgba(0,0,0,0.1); border: 1px solid var(--border-color); color: var(--text-primary); resize: vertical; width: 100%; font-weight: bold; font-size: 0.9rem;"></textarea>
+                        </div>
+
+                        <div
+                            style="display: flex; gap: 24px; margin-bottom: 24px; background: rgba(20, 184, 166, 0.05); padding: 12px; border-radius: 8px; border: 1px solid rgba(20, 184, 166, 0.15); align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Incremento Contrattuale:</span>
+                                <input type="number" id="cons-edit-markup" class="meta-val-input"
+                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Sconto Gara:</span>
+                                <input type="number" id="cons-edit-discount" class="meta-val-input"
+                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Formula:</span>
+                                <select id="cons-edit-formula" class="meta-val-input"
+                                    style="font-weight: bold; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 4px;">
+                                    <option value="corretta">Corretta (Moderna)</option>
+                                    <option value="originale">Originale (Excel)</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Margine Reale:</span>
+                                <span id="cons-margin-percentage" style="font-weight: bold;">0,00%</span>
+                            </div>
+                        </div>
+
+                        <!-- CONTENUTO ATTIVO DELLA SCHEDA CONSUNTIVO (Riepilogo o Tabelle Mese) -->
+                        <div id="consuntivo-sheet-body">
+                            <!-- Popolato dinamicamente via JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA 7: LISTA ORE EXTRA -->
+            <section id="view-oreExtra-list" class="view-section">
+                <div class="list-card">
+                    <div class="table-filters">
+                        <input type="text" class="filter-input" id="search-oreExtra"
+                            placeholder="Cerca per nome, committente o presidio...">
+                        <select class="filter-select" id="filter-oreExtra-status">
+                            <option value="all">Tutti gli stati</option>
+                            <option value="draft">Bozza</option>
+                            <option value="sent">Inviato</option>
+                            <option value="approved">Approvato</option>
+                            <option value="rejected">Respinto</option>
+                        </select>
+                    </div>
+                    <table class="responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Nome Registro</th>
+                                <th>Data Creazione</th>
+                                <th>Committente</th>
+                                <th>Presidio</th>
+                                <th>Totale Ore</th>
+                                <th>Importo Totale (Consuntivato)</th>
+                                <th>Bilancino</th>
+                                <th>RDS/RDF</th>
+                                <th>Stato</th>
+                                <th style="width: 200px;">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="oreExtra-table-body">
+                            <!-- Popolato da JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VISTA 8: EDITOR ORE EXTRA -->
+            <section id="view-oreExtra-edit" class="view-section">
+                <div class="document-editor-container">
+                    <div class="editor-toolbar">
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn btn-outline" onclick="switchView('oreExtra-list')">
+                                <i data-lucide="arrow-left"></i> Indietro
+                            </button>
+                            <input type="text" id="ore-meta-name" class="meta-val-input"
+                                style="font-weight: bold; font-size: 1rem; width: 300px;">
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <select id="ore-edit-bilancino" class="filter-select" style="padding: 6px 12px;">
+                                <option value="">Bilancino: ---</option>
+                                <option value="OK">Bilancino: OK</option>
+                                <option value="NO">Bilancino: da inserire</option>
+                            </select>
+                            <select id="ore-edit-status" class="filter-select" style="padding: 6px 12px;">
+                                <option value="draft">Bozza</option>
+                                <option value="sent">Inviato</option>
+                                <option value="approved">Approvato</option>
+                                <option value="rejected">Respinto</option>
+                            </select>
+                            <button class="btn btn-secondary" id="ore-btn-save">
+                                <i data-lucide="save"></i> Salva Ore Extra
+                            </button>
+                            <button class="btn btn-outline" id="ore-btn-excel"
+                                style="color: #22c55e; border-color: #22c55e;">
+                                <i data-lucide="file-spreadsheet"></i> Esporta Excel
+                            </button>
+                            <button class="btn btn-outline" id="ore-btn-pdf"
+                                style="color: #ef4444; border-color: #ef4444;">
+                                <i data-lucide="file-text"></i> Esporta PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STRUTTURA A TAB PER SCHEDE ORE EXTRA (Riepilogo, Mese 1, Mese 2...) -->
+                    <div class="sheet-tabs-container" id="ore-tabs-container">
+                        <!-- Generato dinamicamente da app.js -->
+                    </div>
+
+                    <!-- FOGLIO SIMULATO ATTIVO -->
+                    <div class="sheet-container" id="ore-sheet-container">
+                        <!-- Intestazione del Foglio Ore Extra -->
+                        <div class="sheet-meta-grid" style="margin-bottom: 24px;">
+                            <div class="meta-group-left">
+                                <div class="meta-company-name">REKEEP S.p.A.</div>
+                                <div>Sede Legale: Via Poli 4 - Zola Predosa (BO)</div>
+                                <div><input type="text" id="ore-meta-company" class="meta-val-input"
+                                        style="font-weight: bold; width: 100%;"></div>
+                            </div>
+                            <div class="meta-group-center">
+                                <div>Spett.le</div>
+                            </div>
+                            <div class="meta-group-right">
+                                <div class="meta-row">
+                                    <span class="meta-label">c.a:</span>
+                                    <input type="text" id="ore-meta-ca" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label"></span>
+                                    <input type="text" id="ore-meta-ca2" class="meta-val-input">
+                                </div>
+                                <div class="meta-row" style="margin-top: 10px;">
+                                    <span class="meta-label">DATA:</span>
+                                    <input type="date" id="ore-meta-date" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Committente:</span>
+                                    <input type="text" id="ore-meta-committente" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Presidio:</span>
+                                    <input type="text" id="ore-meta-presidio" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">ODL:</span>
+                                    <input type="text" id="ore-meta-odl" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">PREV:</span>
+                                    <input type="text" id="ore-meta-prevcode" class="meta-val-input">
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Intervento:</span>
+                                    <input type="text" id="ore-meta-intervento" class="meta-val-input"
+                                        style="font-weight: bold;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Parametri Contrattuali Ore Extra -->
+                        <div
+                            style="margin-bottom: 24px; background: rgba(245, 158, 11, 0.05); padding: 12px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.15); display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Costo Orario Base:</span>
+                                <input type="number" id="ore-edit-costobase" class="meta-val-input"
+                                    style="width: 70px; font-weight: bold;" step="0.01"> €
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Incremento Contrattuale:</span>
+                                <input type="number" id="ore-edit-markup" class="meta-val-input"
+                                    style="width: 70px; font-weight: bold;" min="0" max="100" step="0.01"> %
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Sconto Gara:</span>
+                                <input type="number" id="ore-edit-discount" class="meta-val-input"
+                                    style="width: 60px; font-weight: bold;" min="0" max="100" step="0.01"> %
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="meta-label" style="min-width: unset;">Formula:</span>
+                                <select id="ore-edit-formula" class="meta-val-input"
+                                    style="font-weight: bold; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 4px;">
+                                    <option value="corretta">Corretta (Moderna)</option>
+                                    <option value="originale">Originale (Excel)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- CONTENUTO ATTIVO DELLA SCHEDA ORE EXTRA (Riepilogo o Tabelle Mese) -->
+                        <div id="ore-sheet-body">
+                            <!-- Popolato dinamicamente via JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA: LISTA RAPPORTI LAVORO -->
+            <section id="view-rapporti-list" class="view-section">
+                <div class="list-card">
+                    <div class="table-filters">
+                        <input type="text" class="filter-input" id="search-rapporti"
+                            placeholder="Cerca per numero, cliente o descrizione intervento...">
+                        <select class="filter-select" id="filter-rapporti-status">
+                            <option value="all">Tutti gli stati</option>
+                            <option value="draft">Bozza</option>
+                            <option value="sent">Inviato</option>
+                            <option value="approved">Approvato</option>
+                            <option value="rejected">Respinto</option>
+                        </select>
+                    </div>
+                    <table class="responsive-table">
+                        <thead>
+                            <tr>
+                                <th>Num. Rapporto</th>
+                                <th>Data Lavori</th>
+                                <th>Cliente</th>
+                                <th>Città</th>
+                                <th>Descrizione Intervento</th>
+                                <th>Stato</th>
+                                <th style="width: 200px;">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rapporti-table-body">
+                            <!-- Popolato da JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VISTA: EDITOR RAPPORTO LAVORO -->
+            <section id="view-rapporti-edit" class="view-section">
+                <div class="document-editor-container">
+                    <div class="editor-toolbar">
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn btn-outline" onclick="switchView('rapporti-list')">
+                                <i data-lucide="arrow-left"></i> Indietro
+                            </button>
+                            <span style="font-size: 0.95rem; color: var(--text-secondary);">
+                                Stai modificando il Rapporto di Lavoro N°
+                            </span>
+                            <input type="text" id="rapp-meta-num-title" class="meta-val-input" style="font-weight: bold; font-size: 1rem; width: 120px;" readonly>
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <select id="rapp-edit-status" class="filter-select" style="padding: 6px 12px;">
+                                <option value="draft">Bozza</option>
+                                <option value="sent">Inviato</option>
+                                <option value="approved">Approvato</option>
+                                <option value="rejected">Respinto</option>
+                            </select>
+                            <button class="btn btn-secondary" id="rapp-btn-save">
+                                <i data-lucide="save"></i> Salva
+                            </button>
+                            <button class="btn btn-outline" id="rapp-btn-excel"
+                                style="color: #22c55e; border-color: #22c55e;">
+                                <i data-lucide="file-spreadsheet"></i> Esporta Excel
+                            </button>
+                            <button class="btn btn-outline" id="rapp-btn-pdf"
+                                style="color: #ef4444; border-color: #ef4444;">
+                                <i data-lucide="file-text"></i> Esporta PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- FOGLIO SIMULATO SULLO SCHERMO -->
+                    <div class="sheet-container" id="rapporto-sheet-container">
+                        <!-- Intestazione Rekeep SpA -->
+                        <div class="sheet-meta-grid" style="border-bottom: 2px solid var(--border-color); padding-bottom: 20px;">
+                            <div class="meta-group-left">
+                                <div class="meta-company-name">rekeep</div>
+                                <div style="font-size: 0.85rem; font-weight: bold;">Rekeep SpA a Socio Unico</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Via Poli, 4 / 40069 Zola Predosa (BO) / rekeep.com</div>
+                            </div>
+                            <div class="meta-group-center" style="text-align: center;">
+                                <h2 style="font-family: var(--font-heading); font-size: 1.5rem; letter-spacing: 1px; color: var(--text-primary); margin: 0;">RAPPORTO DI LAVORO</h2>
+                            </div>
+                            <div class="meta-group-right" style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">
+                                MFM.MOD.PG.07.08_07_01
+                            </div>
+                        </div>
+
+                        <!-- Numeri di riferimento -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 20px; margin-top: 15px; margin-bottom: 20px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px;">
+                            <div>
+                                <label class="meta-label" style="color: #ef4444; font-weight: bold;">RAPPORTO N°</label>
+                                <input type="text" id="rapp-meta-num" class="form-control" style="font-weight: bold; border-color: #ef4444; color: #ef4444;" placeholder="es. 074931">
+                            </div>
+                            <div>
+                                <label class="meta-label">RICHIESTA N°</label>
+                                <input type="text" id="rapp-meta-richiesta" class="form-control" placeholder="es. 12345">
+                            </div>
+                            <div>
+                                <label class="meta-label">DITTA ESECUTRICE</label>
+                                <input type="text" id="rapp-meta-ditta" class="form-control" placeholder="es. Rekeep SpA">
+                            </div>
+                        </div>
+
+                        <!-- Griglia Cliente e Localizzazione -->
+                        <div style="display: grid; grid-template-columns: 2fr 3fr auto; gap: 15px; margin-bottom: 12px;">
+                            <div class="form-group">
+                                <label class="meta-label">CLIENTE</label>
+                                <input type="text" id="rapp-meta-cliente" class="form-control" style="font-weight: bold;">
+                            </div>
+                            <div class="form-group">
+                                <label class="meta-label">VIA</label>
+                                <input type="text" id="rapp-meta-via" class="form-control">
+                            </div>
+                            <div class="form-group" style="width: 80px;">
+                                <label class="meta-label">N°</label>
+                                <input type="text" id="rapp-meta-civico" class="form-control">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <div class="form-group">
+                                <label class="meta-label">CITTÀ</label>
+                                <input type="text" id="rapp-meta-citta" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label class="meta-label">EDIFICIO</label>
+                                <input type="text" id="rapp-meta-edificio" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label class="meta-label">PIANO</label>
+                                <input type="text" id="rapp-meta-piano" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label class="meta-label">VANO</label>
+                                <input type="text" id="rapp-meta-vano" class="form-control">
+                            </div>
+                        </div>
+
+                        <!-- Checkbox Tipologia, Causa e Lavori Eseguiti -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <!-- Tipologia Intervento -->
+                            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.01);">
+                                <h4 style="font-family: var(--font-heading); font-size: 0.85rem; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 8px;">TIPOLOGIA DI INTERVENTO</h4>
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem;">
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-tipo" value="EMERGENZA"> EMERGENZA</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-tipo" value="URGENZA"> URGENZA</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-tipo" value="NORMALE"> NORMALE</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-tipo" value="MANUTENZIONE PROGRAMMATA"> MANUTENZIONE PROGRAMMATA</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-tipo" value="MANUTENZIONE STRAORDINARIA"> MANUTENZIONE STRAORDINARIA</label>
+                                </div>
+                            </div>
+                            
+                            <!-- Causa Intervento -->
+                            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.01);">
+                                <h4 style="font-family: var(--font-heading); font-size: 0.85rem; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 8px;">CAUSA INTERVENTO</h4>
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem;">
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-causa" value="MANUTENZIONE PER USURA"> MANUTENZIONE PER USURA</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-causa" value="GUASTO ACCIDENTALE USO IMPROPRIO"> GUASTO ACCIDENTALE / IMPROPRIO</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-causa" value="GUASTO DOLOSO"> GUASTO DOLOSO</label>
+                                    <label style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"><input type="checkbox" name="rapp-causa" value="ALTRO"> ALTRO (SPECIFICARE):
+                                        <input type="text" id="rapp-causa-altro" class="cell-input" style="border-bottom: 1px solid var(--border-color); margin-top: 4px; font-size: 0.8rem; width: 100%; display: none;" placeholder="Specifica cause...">
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Lavori Eseguiti -->
+                            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.01);">
+                                <h4 style="font-family: var(--font-heading); font-size: 0.85rem; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 8px;">LAVORI ESEGUITI</h4>
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem;">
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-lavori" value="COMPLETATI"> COMPLETATI</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-lavori" value="DA COMPLETARE"> DA COMPLETARE</label>
+                                    <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" name="rapp-lavori" value="SOSPESI"> SOSPESI</label>
+                                    <label style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"><input type="checkbox" name="rapp-lavori" value="ALTRO"> ALTRO (SPECIFICARE):
+                                        <input type="text" id="rapp-lavori-altro" class="cell-input" style="border-bottom: 1px solid var(--border-color); margin-top: 4px; font-size: 0.8rem; width: 100%; display: none;" placeholder="Specifica stato...">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Descrizione Intervento -->
+                        <div style="margin-bottom: 20px;">
+                            <label class="meta-label" style="display: block; margin-bottom: 4px; font-weight: bold;">DESCRIZIONE INTERVENTO</label>
+                            <textarea id="rapp-meta-descrizione" class="form-control" rows="4" style="background: rgba(0,0,0,0.1); border: 1px solid var(--border-color); color: var(--text-primary); resize: vertical; width: 100%; font-size: 0.9rem; font-weight: bold;" placeholder="Inserisci la descrizione dettagliata dell'intervento svolto..."></textarea>
+                        </div>
+
+                        <!-- Tabella Operatori -->
+                        <h4 style="margin-bottom: 10px; color: var(--primary); font-family: var(--font-heading); display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="users"></i> OPERATORI (ORE DI LAVORO E TRASFERTA)
+                        </h4>
+                        <div style="overflow-x: auto; width: 100%; margin-bottom: 12px; border-radius: 4px;">
+                            <table class="excel-table" id="table-rapp-operatori" style="min-width: 1000px; margin-bottom: 0;">
+                                <thead>
+                                    <tr>
+                                        <th style="min-width: 250px;">Cognome e Nome</th>
+                                        <th style="width: 90px;">Dalle Ore</th>
+                                        <th style="width: 90px;">Alle Ore</th>
+                                        <th style="width: 110px;">Tot. Ore Ord.</th>
+                                        <th style="width: 110px;">Tot. Ore Str.</th>
+                                        <th style="width: 110px;">Tot. Ore Fest.</th>
+                                        <th style="width: 110px;">Tot. Ore Viaggio</th>
+                                        <th style="width: 130px;">Spese Varie (€)</th>
+                                        <th style="width: 50px;" class="row-actions-td"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rapp-operatori-tbody">
+                                    <!-- Righe operatori generate dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="add-row-btn-container" style="margin-bottom: 24px;">
+                            <button class="btn btn-outline" id="rapp-add-operatore-btn">
+                                <i data-lucide="plus"></i> Aggiungi Operatore
+                            </button>
+                        </div>
+
+                        <!-- Tabella Materiali Impiegati -->
+                        <h4 style="margin-bottom: 10px; color: var(--secondary); font-family: var(--font-heading); display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="box"></i> MATERIALI IMPIEGATI
+                        </h4>
+                        <div style="overflow-x: auto; width: 100%; margin-bottom: 12px; border-radius: 4px;">
+                            <table class="excel-table" id="table-rapp-materiali" style="min-width: 800px; margin-bottom: 0;">
+                                <thead>
+                                    <tr>
+                                        <th style="min-width: 450px;">Descrizione</th>
+                                        <th style="width: 120px;">U.M.</th>
+                                        <th style="width: 150px;">Quantità</th>
+                                        <th style="width: 50px;" class="row-actions-td"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rapp-materiali-tbody">
+                                    <!-- Righe materiali generate dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="add-row-btn-container" style="margin-bottom: 24px;">
+                            <button class="btn btn-outline" id="rapp-add-materiale-btn">
+                                <i data-lucide="plus"></i> Aggiungi Materiale
+                            </button>
+                        </div>
+
+                        <!-- Anomalie e Non Conformità -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+                            <div>
+                                <label class="meta-label" style="display: block; margin-bottom: 4px; font-weight: bold;">DESCRIZIONE ANOMALIE O NON CONFORMITÀ RILEVATE</label>
+                                <textarea id="rapp-meta-anomalie" class="form-control" rows="3" style="background: rgba(0,0,0,0.1); border: 1px solid var(--border-color); color: var(--text-primary); resize: vertical; width: 100%; font-size: 0.85rem;" placeholder="Inserisci eventuali anomalie rilevate..."></textarea>
+                            </div>
+                            <div>
+                                <label class="meta-label" style="display: block; margin-bottom: 4px; font-weight: bold;">AZIONI CORRECTIVE O INTERVENTI DI RIPRISTINO ESEGUITI</label>
+                                <textarea id="rapp-meta-correttive" class="form-control" rows="3" style="background: rgba(0,0,0,0.1); border: 1px solid var(--border-color); color: var(--text-primary); resize: vertical; width: 100%; font-size: 0.85rem;" placeholder="Inserisci le azioni correttive o di ripristino..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Data Lavori e Firme -->
+                        <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 20px; border-top: 1px solid var(--border-color); padding-top: 20px; font-size: 0.85rem;">
+                            <div class="form-group" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: flex-end;">
+                                <label class="meta-label" style="font-weight: bold;">STATI ESEGUITI IN DATA:</label>
+                                <input type="date" id="rapp-meta-data-lavori" class="form-control" style="font-weight: bold; margin-top: 4px;">
+                            </div>
+                            <div>
+                                <p style="font-weight: bold; margin-bottom: 30px; text-align: center;">FIRMA ESECUTORE</p>
+                                <input type="text" id="rapp-meta-firma-esecutore" class="form-control cell-center" placeholder="Firma Esecutore">
+                            </div>
+                            <div>
+                                <p style="font-weight: bold; margin-bottom: 30px; text-align: center;">REFERENTE DEL CLIENTE</p>
+                                <input type="text" id="rapp-meta-firma-referente" class="form-control cell-center" placeholder="Referente Cliente">
+                            </div>
+                            <div>
+                                <p style="font-weight: bold; margin-bottom: 30px; text-align: center;">IL RESPONSABILE</p>
+                                <input type="text" id="rapp-meta-firma-responsabile" class="form-control cell-center" placeholder="Il Responsabile">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA 6: IMPOSTAZIONI -->
+            <section id="view-settings" class="view-section">
+                <div class="list-card" style="max-width: 600px; margin: 0 auto;">
+                    <div
+                        style="margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                        <h3 style="font-family: var(--font-heading);">Configurazione Parametri Default</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Questi valori
+                            verranno inseriti automaticamente nella creazione di nuovi documenti.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="set-company-name">Intestazione Aziendale Secondaria (Rekeep S.p.A.)</label>
+                        <input type="text" id="set-company-name" class="form-control"
+                            placeholder="Inserisci dicitura filiale...">
+                    </div>
+                    <div class="form-group">
+                        <label for="set-company-logo">Logo Aziendale sui PDF</label>
+                        <select id="set-company-logo" class="form-control">
+                            <option value="rekeep">Rekeep</option>
+                            <option value="cmf">CMF</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="set-ca-person">Nome Firma 1 (c.a. Principale)</label>
+                        <input type="text" id="set-ca-person" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="set-ca-person2">Nome Firma 2 (c.a. Secondario)</label>
+                        <input type="text" id="set-ca-person2" class="form-control">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label for="set-markup">Incremento Contrattuale Default (%)</label>
+                            <input type="number" id="set-markup" class="form-control" min="0" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="set-discount">Sconto Gara Offerta Default (%)</label>
+                            <input type="number" id="set-discount" class="form-control" min="0" max="100">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="set-formula">Formula Calcolo Default</label>
+                        <select id="set-formula" class="form-control">
+                            <option value="corretta">Corretta (Moderna: Ricarico poi Sconto)</option>
+                            <option value="originale">Originale (Excel: Sconto applicato su incremento)</option>
+                        </select>
+                    </div>
+
+                    <div
+                        style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 20px; display: flex; justify-content: flex-end;">
+                        <button class="btn btn-secondary" id="set-btn-save">
+                            <i data-lucide="check"></i> Salva Impostazioni
+                        </button>
+                    </div>
+
+                    <!-- SEZIONE BACKUP E RIPRISTINO -->
+                    <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                        <h3 style="font-family: var(--font-heading); margin-bottom: 8px;">
+                            <i data-lucide="hard-drive"
+                                style="width: 20px; height: 20px; vertical-align: middle; margin-right: 6px;"></i>
+                            Backup e Ripristino Dati
+                        </h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                            Esporta tutti i dati (preventivi, consuntivi e impostazioni) in un file JSON di backup,
+                            oppure ripristina da un backup precedente.
+                        </p>
+
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                            <button class="btn btn-primary" id="btn-backup-export"
+                                style="background: linear-gradient(135deg, #0ea5e9, #6366f1);">
+                                <i data-lucide="download"></i> Esporta Backup (.json)
+                            </button>
+                            <button class="btn btn-outline" id="btn-backup-import"
+                                style="color: #f59e0b; border-color: #f59e0b;">
+                                <i data-lucide="upload"></i> Importa / Ripristina Backup
+                            </button>
+                            <input type="file" id="backup-file-input" accept=".json" style="display: none;">
+                        </div>
+
+                        <div id="backup-status-msg"
+                            style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary); display: none;">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- MODALI DI DIALOGO POPUP -->
+
+    <!-- 1. Modale Aggiungi Preventivo -->
+    <div class="modal-overlay" id="modal-add-preventivo">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nuovo Preventivo Lavori</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label for="add-prev-number">Numero Offerta (Progressivo)</label>
+                <input type="text" id="add-prev-number" class="form-control" placeholder="es. 00036">
+            </div>
+            <div class="form-group">
+                <label for="add-prev-commessa">Commessa Associata</label>
+                <select id="add-prev-commessa" class="form-control">
+                    <!-- Popolato dinamicamente da JS -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-prev-client">Committente</label>
+                <input type="text" id="add-prev-client" list="committenti-list" class="form-control" placeholder="es. RAI o scrivi nuovo">
+            </div>
+            <div class="form-group">
+                <label for="add-prev-subject">Oggetto Sintetico</label>
+                <input type="text" id="add-prev-subject" class="form-control" placeholder="es. Sostituzione Pompa 25">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel-modal">Annulla</button>
+                <button class="btn btn-primary" id="btn-submit-add-prev">Crea Preventivo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Modale Aggiungi Consuntivo -->
+    <div class="modal-overlay" id="modal-add-consuntivo">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nuovo Registro Consuntivi</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label for="add-cons-name">Nome Registro</label>
+                <input type="text" id="add-cons-name" class="form-control"
+                    placeholder="es. Consuntivo Extra Canone 2026">
+            </div>
+            <div class="form-group">
+                <label for="add-cons-commessa">Commessa Associata</label>
+                <select id="add-cons-commessa" class="form-control">
+                    <!-- Popolato dinamicamente da JS -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-cons-client">Committente</label>
+                <input type="text" id="add-cons-client" list="committenti-list" class="form-control" placeholder="es. RAI o scrivi nuovo">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel-modal">Annulla</button>
+                <button class="btn btn-secondary" id="btn-submit-add-cons">Crea Registro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Modale Aggiungi Scheda Mese Consuntivo -->
+    <div class="modal-overlay" id="modal-add-month">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Aggiungi Scheda Mese</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label for="add-month-name">Nome Foglio Mese</label>
+                <input type="text" id="add-month-name" class="form-control" placeholder="es. GIUGNO NP 2026">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel-modal">Annulla</button>
+                <button class="btn btn-secondary" id="btn-submit-add-month">Aggiungi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Modale Dettagli Rapporto di Lavoro -->
+    <div class="modal-overlay" id="modal-report-details">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Dettagli Rapporto di Lavoro</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label for="rep-modal-num">Numero Rapporto</label>
+                <input type="text" id="rep-modal-num" class="form-control" placeholder="es. 0155952/22">
+            </div>
+            <div class="form-group">
+                <label for="rep-modal-date">Dettagli Data/Firma (Opzionale)</label>
+                <input type="text" id="rep-modal-date" class="form-control" placeholder="es. DEL 19/05/26">
+            </div>
+            <div class="form-group">
+                <label for="rep-modal-bilancino">Bilancino</label>
+                <select id="rep-modal-bilancino" class="form-control">
+                    <option value="">---</option>
+                    <option value="OK">OK</option>
+                    <option value="NO">da inserire</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="rep-modal-rds-code">Codice RDS (Opzionale)</label>
+                <input type="text" id="rep-modal-rds-code" class="form-control" placeholder="es. RDS-12345">
+            </div>
+            <div class="form-group">
+                <label for="rep-modal-rdf-code">Codice RDF (Opzionale)</label>
+                <input type="text" id="rep-modal-rdf-code" class="form-control" placeholder="es. RDF-12345">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel-modal">Annulla</button>
+                <button class="btn btn-secondary" id="btn-submit-report">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Modale Anteprima di Stampa -->
+    <div class="modal-overlay" id="modal-print-preview">
+        <div class="modal-content" style="max-width: 950px; width: 95%;">
+            <div class="modal-header">
+                <h3>Anteprima di Stampa</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div id="print-preview-container"
+                style="max-height: 65vh; overflow-y: auto; background-color: var(--bg-main); padding: 20px; display: flex; justify-content: center; border: 1px solid var(--border-color); border-radius: 8px;">
+                <!-- Il clone del foglio A4 verrà inserito qui dal JS -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel-modal">Annulla</button>
+                <button class="btn btn-primary" id="btn-confirm-print">
+                    <i data-lucide="download"></i> Scarica PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Modale Aggiungi Ore Extra -->
+    <div class="modal-overlay" id="modal-add-oreExtra">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nuovo Registro Ore Extra</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label for="add-ore-name">Nome Registro</label>
+                <input type="text" id="add-ore-name" class="form-control" placeholder="es. ORE EXTRA 3Q2026">
+            </div>
+            <div class="form-group">
+                <label for="add-ore-commessa">Commessa Associata</label>
+                <select id="add-ore-commessa" class="form-control">
+                    <!-- Popolato dinamicamente da JS -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-ore-client">Committente</label>
+                <input type="text" id="add-ore-client" list="committenti-list" class="form-control" placeholder="es. RAI o scrivi nuovo">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label for="add-ore-year">Anno</label>
+                    <input type="number" id="add-ore-year" class="form-control" value="2026">
+                </div>
+                <div class="form-group">
+                    <label for="add-ore-quarter">Trimestre</label>
+                    <select id="add-ore-quarter" class="form-control">
+                        <option value="1">1° (Gen-Feb-Mar)</option>
+                        <option value="2">2° (Apr-Mag-Giu)</option>
+                        <option value="3">3° (Lug-Ago-Set)</option>
+                        <option value="4">4° (Ott-Nov-Dic)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel-modal">Annulla</button>
+                <button class="btn btn-primary" id="btn-submit-add-ore"
+                    style="background-color: #f59e0b; border-color: #f59e0b;">Crea Registro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. Modale Gestione Commesse -->
+    <div class="modal-overlay" id="modal-manage-commesse">
+        <div class="modal-content" style="max-width: 650px; width: 95%;">
+            <div class="modal-header">
+                <h3>Gestione Commesse</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="commessa-form-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin-bottom: 12px; font-family: var(--font-heading);">Crea Nuova Commessa</h4>
+                <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; align-items: flex-end;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="new-commessa-name" style="font-size: 0.8rem;">Nome Commessa</label>
+                        <input type="text" id="new-commessa-name" class="form-control" placeholder="es. Commessa RAI Sempione">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="new-commessa-client" style="font-size: 0.8rem;">Committente Def.</label>
+                        <input type="text" id="new-commessa-client" list="committenti-list" class="form-control" placeholder="es. RAI o scrivi nuovo">
+                    </div>
+                    <button class="btn btn-primary" id="btn-add-commessa-submit" style="padding: 10px 16px; height: 38px;">
+                        Aggiungi
+                    </button>
+                </div>
+            </div>
+            <div class="commesse-list-wrapper">
+                <h4 style="margin-bottom: 10px; font-family: var(--font-heading);">Commesse Configurate</h4>
+                <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0,0,0,0.1);">
+                    <table class="excel-table" style="width: 100%; margin-bottom: 0;">
+                        <thead>
+                            <tr>
+                                <th>Nome Commessa</th>
+                                <th style="width: 150px;">Committente</th>
+                                <th style="width: 120px; text-align: center;">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="commesse-manage-table-body">
+                            <!-- Popolato da JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn btn-secondary btn-cancel-modal">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8. Modale Aggiungi Rapporto di Lavoro -->
+    <div class="modal-overlay" id="modal-add-rapporto">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nuovo Rapporto di Lavoro</h3>
+                <button class="modal-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label for="add-rapp-number">Numero Rapporto (es. 074931)</label>
+                <input type="text" id="add-rapp-number" class="form-control" placeholder="es. 074931">
+            </div>
+            <div class="form-group">
+                <label for="add-rapp-commessa">Commessa Associata</label>
+                <select id="add-rapp-commessa" class="form-control">
+                    <!-- Popolato dinamicamente da JS -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-rapp-client">Cliente/Committente</label>
+                <input type="text" id="add-rapp-client" list="committenti-list" class="form-control" placeholder="es. RAI o scrivi nuovo">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel-modal">Annulla</button>
+                <button class="btn btn-primary" id="btn-submit-add-rapp"
+                    style="background-color: #10b981; border-color: #10b981;">Crea Rapporto</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Datalist globale per suggerimento committenti -->
+    <datalist id="committenti-list">
+        <option value="RAI">
+        <option value="RAI WAY">
+        <option value="INPS">
+        <option value="REGIONE LOMBARDIA">
+    </datalist>
+
+    <!-- File Logici Locali dell'Applicazione -->
+    <script src="excel-export.js?v=1.1"></script>
+    <script src="pdf-export.js?v=1.1"></script>
+    <script src="app.js?v=1.1"></script>
+</body>
+
+</html>

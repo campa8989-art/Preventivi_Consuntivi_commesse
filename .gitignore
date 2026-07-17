@@ -1,0 +1,21 @@
+# Service and agent folders
+.agent/
+.vscode/
+
+# Project exports and archives
+*.zip
+export_progetto.zip
+
+# Backup folder
+backup/
+
+# Node dependencies (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# System files
+Thumbs.db
+Desktop.ini
