@@ -1,6 +1,7 @@
 # Service and agent folders
 .agent/
 .vscode/
+tools/
 
 # Project exports and archives
 *.zip
