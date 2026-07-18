@@ -39,6 +39,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <!-- Esportazione PDF: html2pdf.js (basato su jsPDF e html2canvas) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Database: Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -120,10 +122,12 @@
 
     <!-- AREA DI CONTENUTO PRINCIPALE -->
     <main class="main-content">
-        <!-- HEADER DELLA PAGINA -->
         <header class="content-header">
-            <div class="header-title">
+            <div class="header-title" style="display: flex; align-items: center; gap: 12px;">
                 <h2>Gestione Preventivi e Consuntivi</h2>
+                <span id="cloud-sync-indicator" class="badge" style="background: rgba(156, 163, 175, 0.15); color: #9ca3af; font-size: 0.75rem; padding: 4px 10px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px; font-weight: 500;">
+                    <i data-lucide="cloud-off" style="width: 12px; height: 12px;"></i> Offline (Locale)
+                </span>
             </div>
             <div class="header-actions">
                 <button class="btn btn-primary" id="btn-new-preventivo">
@@ -390,12 +394,12 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Incremento Contrattuale:</span>
                                 <input type="number" id="prev-edit-markup" class="meta-val-input"
-                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                                    style="width: 80px; font-weight: bold;" min="0" max="100"> %
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Sconto Gara:</span>
                                 <input type="number" id="prev-edit-discount" class="meta-val-input"
-                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                                    style="width: 80px; font-weight: bold;" min="0" max="100"> %
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Formula:</span>
@@ -686,12 +690,12 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Incremento Contrattuale:</span>
                                 <input type="number" id="cons-edit-markup" class="meta-val-input"
-                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                                    style="width: 80px; font-weight: bold;" min="0" max="100"> %
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Sconto Gara:</span>
                                 <input type="number" id="cons-edit-discount" class="meta-val-input"
-                                    style="width: 60px; font-weight: bold;" min="0" max="100"> %
+                                    style="width: 80px; font-weight: bold;" min="0" max="100"> %
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Formula:</span>
@@ -854,12 +858,12 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Incremento Contrattuale:</span>
                                 <input type="number" id="ore-edit-markup" class="meta-val-input"
-                                    style="width: 70px; font-weight: bold;" min="0" max="100" step="0.01"> %
+                                    style="width: 80px; font-weight: bold;" min="0" max="100" step="0.01"> %
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Sconto Gara:</span>
                                 <input type="number" id="ore-edit-discount" class="meta-val-input"
-                                    style="width: 60px; font-weight: bold;" min="0" max="100" step="0.01"> %
+                                    style="width: 80px; font-weight: bold;" min="0" max="100" step="0.01"> %
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="meta-label" style="min-width: unset;">Formula:</span>
@@ -1207,6 +1211,44 @@
                         </button>
                     </div>
 
+                    <!-- SEZIONE SUPABASE SYNC -->
+                    <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                        <h3 style="font-family: var(--font-heading); margin-bottom: 8px; color: #10b981; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="cloud-lightning" style="width: 20px; height: 20px;"></i>
+                            Sincronizzazione Cloud Supabase
+                        </h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                            Configura il database Supabase per sincronizzare preventivi, consuntivi e ore extra nel cloud.
+                        </p>
+
+                        <div class="form-group">
+                            <label for="supabase-url">Supabase Project URL</label>
+                            <input type="text" id="supabase-url" class="form-control" placeholder="https://xyz.supabase.co">
+                        </div>
+                        <div class="form-group">
+                            <label for="supabase-anon-key">Supabase Anon/Public Key</label>
+                            <input type="password" id="supabase-anon-key" class="form-control" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                        </div>
+                        <div class="form-group">
+                            <label for="supabase-user-email">Email Identificativa Utente</label>
+                            <input type="email" id="supabase-user-email" class="form-control" placeholder="nome.utente@azienda.it">
+                        </div>
+
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px;">
+                            <button class="btn btn-primary" id="btn-supabase-save-config" style="background: #10b981; border-color: #10b981;">
+                                <i data-lucide="save"></i> Salva e Connetti
+                            </button>
+                            <button class="btn btn-outline" id="btn-supabase-pull" style="color: #0ea5e9; border-color: #0ea5e9;">
+                                <i data-lucide="cloud-download"></i> Scarica da Cloud
+                            </button>
+                            <button class="btn btn-outline" id="btn-supabase-push" style="color: #10b981; border-color: #10b981;">
+                                <i data-lucide="cloud-upload"></i> Invia a Cloud
+                            </button>
+                        </div>
+
+                        <div id="supabase-status-msg" style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary); display: none;"></div>
+                    </div>
+
                     <!-- SEZIONE BACKUP E RIPRISTINO -->
                     <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
                         <h3 style="font-family: var(--font-heading); margin-bottom: 8px;">
@@ -1426,14 +1468,14 @@
 
     <!-- 7. Modale Gestione Commesse -->
     <div class="modal-overlay" id="modal-manage-commesse">
-        <div class="modal-content" style="max-width: 650px; width: 95%;">
+        <div class="modal-content" style="max-width: 1100px; width: 95%;">
             <div class="modal-header">
                 <h3>Gestione Commesse</h3>
                 <button class="modal-close"><i data-lucide="x"></i></button>
             </div>
             <div class="commessa-form-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 16px; border-radius: 8px; margin-bottom: 20px;">
                 <h4 style="margin-bottom: 12px; font-family: var(--font-heading);">Crea Nuova Commessa</h4>
-                <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; align-items: flex-end;">
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px;">
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="new-commessa-name" style="font-size: 0.8rem;">Nome Commessa</label>
                         <input type="text" id="new-commessa-name" class="form-control" placeholder="es. Commessa RAI Sempione">
@@ -1441,6 +1483,26 @@
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="new-commessa-client" style="font-size: 0.8rem;">Committente Def.</label>
                         <input type="text" id="new-commessa-client" list="committenti-list" class="form-control" placeholder="es. RAI o scrivi nuovo">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="new-commessa-ca" style="font-size: 0.8rem;">Firma 1 (c.a. Principal.)</label>
+                        <input type="text" id="new-commessa-ca" class="form-control" placeholder="Usa globale se vuoto">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="new-commessa-ca2" style="font-size: 0.8rem;">Firma 2 (c.a. Secondar.)</label>
+                        <input type="text" id="new-commessa-ca2" class="form-control" placeholder="Usa globale se vuoto">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: flex-end;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="new-commessa-markup" style="font-size: 0.8rem;">Ricarico Def. (%)</label>
+                        <input type="number" id="new-commessa-markup" class="form-control" placeholder="Usa globale se vuoto" min="0" max="100">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="new-commessa-discount" style="font-size: 0.8rem;">Sconto Def. (%)</label>
+                        <input type="number" id="new-commessa-discount" class="form-control" placeholder="Usa globale se vuoto" min="0" max="100">
                     </div>
                     <button class="btn btn-primary" id="btn-add-commessa-submit" style="padding: 10px 16px; height: 38px;">
                         Aggiungi
@@ -1454,8 +1516,9 @@
                         <thead>
                             <tr>
                                 <th>Nome Commessa</th>
-                                <th style="width: 150px;">Committente</th>
-                                <th style="width: 120px; text-align: center;">Azioni</th>
+                                <th style="width: 120px;">Committente</th>
+                                <th style="width: 120px; text-align: right;">Ricarico / Sconto</th>
+                                <th style="width: 100px; text-align: center;">Azioni</th>
                             </tr>
                         </thead>
                         <tbody id="commesse-manage-table-body">

@@ -189,6 +189,9 @@ function generatePart2Days(year, monthIndex) {
     return days;
 }
 
+// --- SUPABASE CLIENT ---
+let supabaseClient = null;
+
 // --- STATO APPLICATIVO ---
 let state = {
     commesse: [], // Array di commesse: { id, nome, committenteDefault }
@@ -204,7 +207,10 @@ let state = {
         defaultMarkup: 15,
         defaultDiscount: 31,
         defaultFormulaType: 'corretta',
-        theme: 'dark'
+        theme: 'dark',
+        supabaseUrl: '',
+        supabaseAnonKey: '',
+        supabaseUserEmail: ''
     },
     activeView: 'dashboard',
     editingId: null,
@@ -255,6 +261,16 @@ function loadState() {
             }
             if (!state.activeSheetTab) {
                 state.activeSheetTab = 'riepilogo';
+            }
+
+            if (!state.settings.supabaseUrl) {
+                state.settings.supabaseUrl = '';
+            }
+            if (!state.settings.supabaseAnonKey) {
+                state.settings.supabaseAnonKey = '';
+            }
+            if (!state.settings.supabaseUserEmail) {
+                state.settings.supabaseUserEmail = '';
             }
 
             // Migrazione automatica se mancano le commesse o sono vuote
@@ -312,6 +328,9 @@ function loadState() {
     
     // Applica tema
     document.documentElement.setAttribute('data-theme', state.settings.theme || 'dark');
+    
+    // Inizializza Supabase
+    initSupabase();
 }
 
 function updateLastUpdatedDisplay() {
@@ -330,6 +349,212 @@ function updateLastUpdatedDisplay() {
     }
 }
 
+// --- INTEGRAZIONE SUPABASE ---
+
+function initSupabase() {
+    if (state.settings.supabaseUrl && state.settings.supabaseAnonKey) {
+        try {
+            if (typeof supabase !== 'undefined') {
+                supabaseClient = supabase.createClient(state.settings.supabaseUrl, state.settings.supabaseAnonKey);
+                console.log("Supabase Client inizializzato con successo.");
+                updateSyncIndicator('connected');
+            } else {
+                console.warn("Libreria Supabase non caricata.");
+                updateSyncIndicator('offline');
+            }
+        } catch (e) {
+            console.error("Errore nell'inizializzazione di Supabase:", e);
+            updateSyncIndicator('error');
+        }
+    } else {
+        supabaseClient = null;
+        updateSyncIndicator('offline');
+    }
+}
+
+function updateSyncIndicator(status) {
+    const el = document.getElementById('cloud-sync-indicator');
+    if (!el) return;
+
+    if (status === 'connected') {
+        el.style.background = 'rgba(16, 185, 129, 0.15)';
+        el.style.color = '#10b981';
+        el.innerHTML = '<i data-lucide="cloud" style="width: 12px; height: 12px;"></i> Online (Supabase)';
+    } else if (status === 'syncing') {
+        el.style.background = 'rgba(14, 165, 233, 0.15)';
+        el.style.color = '#0ea5e9';
+        el.innerHTML = '<i data-lucide="refresh-cw" style="width: 12px; height: 12px;" class="spin"></i> Sincronizzazione...';
+    } else if (status === 'error') {
+        el.style.background = 'rgba(239, 68, 68, 0.15)';
+        el.style.color = '#ef4444';
+        el.innerHTML = '<i data-lucide="cloud-lightning" style="width: 12px; height: 12px;"></i> Errore Sync';
+    } else {
+        el.style.background = 'rgba(156, 163, 175, 0.15)';
+        el.style.color = '#9ca3af';
+        el.innerHTML = '<i data-lucide="cloud-off" style="width: 12px; height: 12px;"></i> Offline (Locale)';
+    }
+    
+    // Re-inizializza le icone Lucide all'interno dell'indicatore
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function showSupabaseStatus(message, isError = false) {
+    const el = document.getElementById('supabase-status-msg');
+    if (el) {
+        el.textContent = message;
+        el.style.display = 'block';
+        el.style.color = isError ? '#ef4444' : '#10b981';
+        setTimeout(() => { el.style.display = 'none'; }, 6000);
+    }
+}
+
+async function saveSupabaseConfig() {
+    const url = document.getElementById('supabase-url').value.trim();
+    const anonKey = document.getElementById('supabase-anon-key').value.trim();
+    const email = document.getElementById('supabase-user-email').value.trim();
+
+    if (!url || !anonKey || !email) {
+        showSupabaseStatus("Tutti i campi (URL, Anon Key, Email) sono obbligatori per abilitare Supabase.", true);
+        return;
+    }
+
+    state.settings.supabaseUrl = url;
+    state.settings.supabaseAnonKey = anonKey;
+    state.settings.supabaseUserEmail = email;
+
+    // Salva le impostazioni locali
+    saveState();
+    
+    // Inizializza il client
+    initSupabase();
+
+    if (supabaseClient) {
+        showSupabaseStatus("Configurazione salvata localmente. Tentativo di connessione e invio dati al cloud...");
+        const success = await pushStateToSupabase();
+        if (success) {
+            showSupabaseStatus("Connessione riuscita! Dati sincronizzati con successo sul cloud.");
+            alert("Supabase connesso e dati sincronizzati correttamente!");
+        } else {
+            showSupabaseStatus("Configurazione salvata, ma impossibile sincronizzare. Verifica URL, Anon Key o che la tabella 'app_state' esista su Supabase.", true);
+        }
+    } else {
+        showSupabaseStatus("Errore nell'inizializzazione del client Supabase. Verifica i parametri.", true);
+    }
+}
+
+async function pushStateToSupabase() {
+    if (!supabaseClient) return false;
+    const email = state.settings.supabaseUserEmail;
+    if (!email) return false;
+
+    updateSyncIndicator('syncing');
+    try {
+        // Cerca se esiste un record esistente per l'email utente
+        const { data, error } = await supabaseClient
+            .from('app_state')
+            .select('id')
+            .eq('user_email', email)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        const payload = {
+            user_email: email,
+            state_data: state,
+            updated_at: new Date().toISOString()
+        };
+
+        let resError = null;
+        if (data) {
+            // Aggiorna record esistente
+            const { error: updateError } = await supabaseClient
+                .from('app_state')
+                .update(payload)
+                .eq('id', data.id);
+            resError = updateError;
+        } else {
+            // Crea nuovo record
+            const { error: insertError } = await supabaseClient
+                .from('app_state')
+                .insert([payload]);
+            resError = insertError;
+        }
+
+        if (resError) throw resError;
+        
+        updateSyncIndicator('connected');
+        return true;
+    } catch (err) {
+        console.error("Errore durante l'invio a Supabase:", err);
+        updateSyncIndicator('error');
+        return false;
+    }
+}
+
+async function pullStateFromSupabase(isManual = false) {
+    if (!supabaseClient) {
+        if (isManual) alert("Supabase non è configurato. Inserisci i dati di connessione e premi 'Salva e Connetti'.");
+        return;
+    }
+    const email = state.settings.supabaseUserEmail;
+    if (!email) {
+        if (isManual) alert("Inserisci un indirizzo email per identificare il tuo backup.");
+        return;
+    }
+
+    if (isManual && !confirm("Sei sicuro di voler scaricare i dati dal cloud? Lo stato corrente locale non salvato verrà sovrascritto.")) {
+        return;
+    }
+
+    updateSyncIndicator('syncing');
+    try {
+        showSupabaseStatus("Scaricamento dati dal cloud in corso...");
+        const { data, error } = await supabaseClient
+            .from('app_state')
+            .select('state_data')
+            .eq('user_email', email)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        if (data && data.state_data) {
+            state = data.state_data;
+            
+            // Forza il mantenimento delle credenziali attive
+            state.settings.supabaseUrl = supabaseClient.supabaseUrl;
+            state.settings.supabaseAnonKey = supabaseClient.supabaseKey;
+            state.settings.supabaseUserEmail = email;
+
+            localStorage.setItem('gestione_preventivi_stato', JSON.stringify(state));
+            
+            // Aggiorna l'interfaccia
+            updateDashboardStats();
+            updateLastUpdatedDisplay();
+            
+            if (state.activeView === 'dashboard') {
+                renderDashboard();
+            } else {
+                switchView(state.activeView);
+            }
+
+            updateSyncIndicator('connected');
+            showSupabaseStatus("Dati scaricati e sincronizzati correttamente dal cloud!");
+            if (isManual) alert("Dati scaricati con successo da Supabase!");
+        } else {
+            showSupabaseStatus("Nessun dato salvato trovato nel cloud per questa email.", true);
+            updateSyncIndicator('connected');
+            if (isManual) alert("Nessun backup trovato sul cloud per l'email indicata.");
+        }
+    } catch (err) {
+        console.error("Errore durante il download da Supabase:", err);
+        showSupabaseStatus("Errore nel download: " + err.message, true);
+        updateSyncIndicator('error');
+        if (isManual) alert("Errore durante il caricamento dei dati: " + err.message);
+    }
+}
+
 function saveState() {
     state.lastUpdated = new Date().toISOString();
     localStorage.setItem('gestione_preventivi_stato', JSON.stringify(state));
@@ -337,6 +562,17 @@ function saveState() {
     updateLastUpdatedDisplay();
     if (state.activeView === 'dashboard') {
         renderDashboard();
+    }
+    
+    // Sincronizza in background se connesso
+    if (supabaseClient) {
+        pushStateToSupabase().then(success => {
+            if (success) {
+                console.log("Sincronizzazione automatica cloud completata.");
+            } else {
+                console.warn("Sincronizzazione automatica cloud fallita.");
+            }
+        });
     }
 }
 
@@ -2206,6 +2442,10 @@ function renderSettings() {
     document.getElementById('set-markup').value = state.settings.defaultMarkup;
     document.getElementById('set-discount').value = state.settings.defaultDiscount;
     document.getElementById('set-formula').value = state.settings.defaultFormulaType || 'corretta';
+    
+    document.getElementById('supabase-url').value = state.settings.supabaseUrl || '';
+    document.getElementById('supabase-anon-key').value = state.settings.supabaseAnonKey || '';
+    document.getElementById('supabase-user-email').value = state.settings.supabaseUserEmail || '';
 }
 
 function saveSettingsFromUI() {
@@ -2462,10 +2702,22 @@ function submitAddPreventivo() {
         prevCode: 'REK/' + new Date().getFullYear() + '/U/ic/' + String(state.preventivi.length + 100).padStart(6, '0'),
         oggetto: `${client} Milano - Preventivo per ${subject}`,
         companyName: state.settings.companyName,
-        caPerson: state.settings.caPerson,
-        caPerson2: state.settings.caPerson2,
-        markupPercent: state.settings.defaultMarkup,
-        discountPercent: state.settings.defaultDiscount,
+        caPerson: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.caPerson) ? comm.caPerson : state.settings.caPerson;
+        })(),
+        caPerson2: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.caPerson2) ? comm.caPerson2 : state.settings.caPerson2;
+        })(),
+        markupPercent: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.defaultMarkup !== undefined && comm.defaultMarkup !== '') ? Number(comm.defaultMarkup) : state.settings.defaultMarkup;
+        })(),
+        discountPercent: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.defaultDiscount !== undefined && comm.defaultDiscount !== '') ? Number(comm.defaultDiscount) : state.settings.defaultDiscount;
+        })(),
         status: 'draft',
         author: 'Ivan Luca Campagnoli',
         notes: '',
@@ -2538,10 +2790,22 @@ function submitAddConsuntivo() {
         odl: '',
         date: new Date().toISOString().split('T')[0],
         companyName: state.settings.companyName,
-        caPerson: state.settings.caPerson,
-        caPerson2: state.settings.caPerson2,
-        markupPercent: state.settings.defaultMarkup,
-        discountPercent: state.settings.defaultDiscount,
+        caPerson: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.caPerson) ? comm.caPerson : state.settings.caPerson;
+        })(),
+        caPerson2: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.caPerson2) ? comm.caPerson2 : state.settings.caPerson2;
+        })(),
+        markupPercent: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.defaultMarkup !== undefined && comm.defaultMarkup !== '') ? Number(comm.defaultMarkup) : state.settings.defaultMarkup;
+        })(),
+        discountPercent: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.defaultDiscount !== undefined && comm.defaultDiscount !== '') ? Number(comm.defaultDiscount) : state.settings.defaultDiscount;
+        })(),
         oggetto: `OGGETTO: RIEPILOGO CONSUNTIVI LAVORAZIONI EXTRA CANONE APRILE-MAGGIO-GIUGNO ${new Date().getFullYear()}`,
         extraCanoneText: 'MANUTENZIONE  EXTRA CANONE',
         status: 'draft',
@@ -3380,6 +3644,10 @@ function openManageCommesseModal() {
         // Pulisce i campi
         document.getElementById('new-commessa-name').value = '';
         document.getElementById('new-commessa-client').value = 'RAI';
+        document.getElementById('new-commessa-markup').value = '';
+        document.getElementById('new-commessa-discount').value = '';
+        document.getElementById('new-commessa-ca').value = '';
+        document.getElementById('new-commessa-ca2').value = '';
         
         renderManageCommesseList();
         modal.classList.add('active');
@@ -3400,7 +3668,7 @@ function renderManageCommesseList() {
     tbody.innerHTML = '';
 
     if (state.commesse.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Nessuna commessa creata</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Nessuna commessa creata</td></tr>`;
         return;
     }
 
@@ -3413,12 +3681,18 @@ function renderManageCommesseList() {
         const oreCount = (state.oreExtra || []).filter(oe => oe && oe.commessaId === c.id).length;
         const totalItems = prevCount + consCount + oreCount;
 
+        const markupText = (c.defaultMarkup !== undefined && c.defaultMarkup !== '') ? `${c.defaultMarkup}%` : 'Globale';
+        const discountText = (c.defaultDiscount !== undefined && c.defaultDiscount !== '') ? `${c.defaultDiscount}%` : 'Globale';
+
         tr.innerHTML = `
             <td><strong>${c.nome}</strong></td>
             <td><span class="badge badge-sent">${c.committenteDefault}</span></td>
+            <td style="text-align: right; font-size: 0.85rem; padding-right: 12px; font-weight: 500;">
+                <span style="color: var(--text-secondary);">${markupText} / ${discountText}</span>
+            </td>
             <td class="cell-center">
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <button class="btn btn-outline btn-icon-only edit-commessa-btn" data-id="${c.id}" title="Modifica Nome" style="padding: 4px;">
+                    <button class="btn btn-outline btn-icon-only edit-commessa-btn" data-id="${c.id}" title="Modifica Commessa" style="padding: 4px;">
                         <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
                     </button>
                     <button class="btn btn-outline btn-icon-only delete-commessa-btn" data-id="${c.id}" data-total="${totalItems}" title="Elimina" style="color: var(--danger); padding: 4px;">
@@ -3441,8 +3715,31 @@ function renderManageCommesseList() {
             const comm = state.commesse.find(c => c.id === id);
             if (comm) {
                 const nuovoNome = prompt("Inserisci il nuovo nome per la commessa:", comm.nome);
-                if (nuovoNome && nuovoNome.trim()) {
-                    comm.nome = nuovoNome.trim();
+                if (nuovoNome !== null) {
+                    const nuovoClient = prompt("Inserisci il committente di default:", comm.committenteDefault || '');
+                    const nuovoMarkup = prompt("Inserisci il ricarico di default (%) o lascia vuoto per usare il valore globale:", comm.defaultMarkup !== undefined ? comm.defaultMarkup : '');
+                    const nuovoSconto = prompt("Inserisci lo sconto di default (%) o lascia vuoto per usare il valore globale:", comm.defaultDiscount !== undefined ? comm.defaultDiscount : '');
+                    const nuovoCA1 = prompt("Inserisci Firma 1 (c.a. Principale) o lascia vuoto per usare il globale:", comm.caPerson || '');
+                    const nuovoCA2 = prompt("Inserisci Firma 2 (c.a. Secondario) o lascia vuoto per usare il globale:", comm.caPerson2 || '');
+
+                    if (nuovoNome.trim()) comm.nome = nuovoNome.trim();
+                    if (nuovoClient !== null) comm.committenteDefault = nuovoClient.trim();
+                    
+                    if (nuovoMarkup !== null) {
+                        const parsedMarkup = Number(nuovoMarkup.replace(',', '.').trim());
+                        comm.defaultMarkup = (nuovoMarkup.trim() === '' || isNaN(parsedMarkup)) ? undefined : parsedMarkup;
+                    }
+                    if (nuovoSconto !== null) {
+                        const parsedSconto = Number(nuovoSconto.replace(',', '.').trim());
+                        comm.defaultDiscount = (nuovoSconto.trim() === '' || isNaN(parsedSconto)) ? undefined : parsedSconto;
+                    }
+                    if (nuovoCA1 !== null) {
+                        comm.caPerson = nuovoCA1.trim() !== '' ? nuovoCA1.trim() : undefined;
+                    }
+                    if (nuovoCA2 !== null) {
+                        comm.caPerson2 = nuovoCA2.trim() !== '' ? nuovoCA2.trim() : undefined;
+                    }
+
                     saveState();
                     renderCommessaSelector();
                     renderManageCommesseList();
@@ -3495,9 +3792,17 @@ function addCommessaSubmit() {
     try {
         const nomeInput = document.getElementById('new-commessa-name');
         const clientSelect = document.getElementById('new-commessa-client');
+        const markupInput = document.getElementById('new-commessa-markup');
+        const discountInput = document.getElementById('new-commessa-discount');
         
         const nome = nomeInput.value ? nomeInput.value.trim() : '';
         const client = clientSelect.value;
+        const markupVal = markupInput.value.trim();
+        const discountVal = discountInput.value.trim();
+        const caInput = document.getElementById('new-commessa-ca');
+        const ca2Input = document.getElementById('new-commessa-ca2');
+        const caVal = caInput ? caInput.value.trim() : '';
+        const ca2Val = ca2Input ? ca2Input.value.trim() : '';
         
         if (!nome) {
             alert('Inserire un nome per la commessa.');
@@ -3510,6 +3815,21 @@ function addCommessaSubmit() {
             nome: nome,
             committenteDefault: client
         };
+
+        if (markupVal !== '') {
+            const parsedMarkup = Number(markupVal.replace(',', '.'));
+            if (!isNaN(parsedMarkup)) nuovaCommessa.defaultMarkup = parsedMarkup;
+        }
+        if (discountVal !== '') {
+            const parsedDiscount = Number(discountVal.replace(',', '.'));
+            if (!isNaN(parsedDiscount)) nuovaCommessa.defaultDiscount = parsedDiscount;
+        }
+        if (caVal !== '') {
+            nuovaCommessa.caPerson = caVal;
+        }
+        if (ca2Val !== '') {
+            nuovaCommessa.caPerson2 = ca2Val;
+        }
         
         state.commesse.push(nuovaCommessa);
         
@@ -3518,6 +3838,10 @@ function addCommessaSubmit() {
         saveState();
         
         nomeInput.value = '';
+        markupInput.value = '';
+        discountInput.value = '';
+        if (caInput) caInput.value = '';
+        if (ca2Input) ca2Input.value = '';
         renderCommessaSelector();
         
         // Chiude la modale di gestione
@@ -3770,6 +4094,19 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Salvataggio impostazioni
     document.getElementById('set-btn-save').addEventListener('click', saveSettingsFromUI);
+    
+    // Integrazione Supabase
+    document.getElementById('btn-supabase-save-config').addEventListener('click', saveSupabaseConfig);
+    document.getElementById('btn-supabase-pull').addEventListener('click', () => pullStateFromSupabase(true));
+    document.getElementById('btn-supabase-push').addEventListener('click', () => {
+        pushStateToSupabase().then(success => {
+            if (success) {
+                alert("Stato corrente inviato al cloud con successo!");
+            } else {
+                alert("Errore nell'invio dei dati al cloud. Verifica le credenziali o se la tabella 'app_state' esiste.");
+            }
+        });
+    });
     
     // Backup e Ripristino
     document.getElementById('btn-backup-export').addEventListener('click', exportBackup);
@@ -4439,11 +4776,23 @@ function submitAddOreExtra() {
         prevCode: '',
         date: new Date().toISOString().split('T')[0],
         companyName: 'DIREZIONE OPERATION - AREA LOMBARDIA',
-        caPerson: state.settings.caPerson,
-        caPerson2: state.settings.caPerson2,
+        caPerson: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.caPerson) ? comm.caPerson : state.settings.caPerson;
+        })(),
+        caPerson2: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.caPerson2) ? comm.caPerson2 : state.settings.caPerson2;
+        })(),
         costoBase: 18.30,
-        markupPercent: 26.50,
-        discountPercent: 31.00,
+        markupPercent: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.defaultMarkup !== undefined && comm.defaultMarkup !== '') ? Number(comm.defaultMarkup) : state.settings.defaultMarkup;
+        })(),
+        discountPercent: (function() {
+            const comm = state.commesse.find(c => c.id === commessaId);
+            return (comm && comm.defaultDiscount !== undefined && comm.defaultDiscount !== '') ? Number(comm.defaultDiscount) : state.settings.defaultDiscount;
+        })(),
         formulaType: 'originale',
         status: 'draft',
         months: monthsNames.map((mName, index) => {
